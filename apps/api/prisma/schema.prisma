@@ -1,0 +1,190 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum PollStatus {
+  draft
+  published
+  closed
+}
+
+enum PollType {
+  single
+  multiple
+}
+
+model AdminUser {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  secretKey    String?  // 密钥登录专用
+  displayName  String?
+  classId      String?  // 班级编号 (01-12)，null 表示普通管理员
+  deviceId     String?  // 绑定的设备指纹
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  roles         AdminUserRole[]
+  refreshTokens AdminRefreshToken[]
+  auditLogs     AuditLog[]
+
+  @@index([classId])
+  @@index([secretKey])
+}
+
+model Role {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users       AdminUserRole[]
+  permissions RolePermission[]
+}
+
+model Permission {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  roles RolePermission[]
+}
+
+model AdminUserRole {
+  adminUserId String
+  roleId      String
+  createdAt   DateTime @default(now())
+
+  adminUser AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+  role      Role      @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([adminUserId, roleId])
+  @@index([roleId])
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  createdAt    DateTime @default(now())
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+}
+
+model AdminRefreshToken {
+  id          String   @id @default(cuid())
+  adminUserId String
+  tokenHash   String   @unique
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime
+  revokedAt   DateTime?
+
+  adminUser AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+
+  @@index([adminUserId])
+  @@index([expiresAt])
+}
+
+model Poll {
+  id            String     @id @default(cuid())
+  title         String
+  description   String?
+  status        PollStatus @default(draft)
+  type          PollType   @default(single)
+  maxSelections Int        @default(1)
+  isAnonymous   Boolean    @default(true)
+  startsAt      DateTime?
+  endsAt        DateTime?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  options PollOption[]
+  votes   Vote[]
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+model PollOption {
+  id        String   @id @default(cuid())
+  pollId    String
+  text      String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  poll  Poll   @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  votes Vote[]
+
+  @@index([pollId])
+  @@unique([pollId, sortOrder])
+}
+
+model Vote {
+  id         String   @id @default(cuid())
+  pollId     String
+  optionId   String
+  voterKey   String
+  ipHash     String?
+  uaHash     String?
+  createdAt  DateTime @default(now())
+
+  poll   Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  option PollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+
+  @@index([pollId])
+  @@index([optionId])
+  @@index([createdAt])
+  @@unique([pollId, voterKey, optionId])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  adminUserId String?
+  action      String
+  entityType  String
+  entityId    String?
+  detailJson  Json?
+  ip          String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  adminUser AdminUser? @relation(fields: [adminUserId], references: [id], onDelete: SetNull)
+
+  @@index([adminUserId])
+  @@index([createdAt])
+  @@index([entityType, entityId])
+}
+
+model Announcement {
+  id        String   @id @default(cuid())
+  title     String
+  content   String
+  isActive  Boolean  @default(true)
+  priority  Int      @default(0) // 数字越大优先级越高
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  startsAt  DateTime?
+  endsAt    DateTime?
+
+  @@index([isActive])
+  @@index([createdAt])
+}
+
+model SiteSettings {
+  id                  String   @id @default(cuid())
+  siteUrl             String?  @default("")
+  extraAllowedOrigins String?  @default("")
+  updatedAt           DateTime @updatedAt
+}
