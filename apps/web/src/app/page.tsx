@@ -30,8 +30,9 @@ const PollListItem = ({ p }: { p: PollSummary }) => (
 
 export default function HomePage() {
   const { data, error, isLoading } = useSWR<PollSummary[]>(
-    '/api/polls',
+    '/polls',
     (path: string) => apiFetch<PollSummary[]>(path),
+    { errorRetryCount: 2, errorRetryInterval: 3000 },
   );
 
   return (
