@@ -88,6 +88,7 @@ export default function Live2DMiku() {
 
     let currentModel: any;
     let cancelled = false;
+    let onClick: () => void;
 
     async function start() {
       // Ensure Cubism Core is loaded (next/script should handle this, but
@@ -156,9 +157,10 @@ export default function Live2DMiku() {
         try { currentModel.motion('Idle'); } catch (_) {}
       }, 1000);
 
-      container.addEventListener('click', () => {
-        try { currentModel.motion('Tap'); } catch (_) {}
-      });
+      const onClick = () => {
+        try { currentModelRef.current?.motion?.('Tap'); } catch (_) {}
+      };
+      container.addEventListener('click', onClick);
     }
 
     setLoading(true);
@@ -166,6 +168,7 @@ export default function Live2DMiku() {
 
     return () => {
       cancelled = true;
+      container?.removeEventListener('click', onClick);
       if (currentModel) {
         modelRef.current = null;
         currentModel.destroy({ children: true, texture: true, baseTexture: true });
