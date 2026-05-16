@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 
+/** Live2D model configuration */
 interface ModelConfig {
   id: string;
   name: string;
@@ -16,6 +17,7 @@ interface ModelConfig {
   };
 }
 
+/** Registered models — add entries here to extend the switcher */
 const MODELS: ModelConfig[] = [
   {
     id: 'miku',
@@ -35,8 +37,29 @@ const MODELS: ModelConfig[] = [
   },
 ];
 
+/** Path to locally-served Cubism Core (fallback if next/script hasn't loaded) */
 const CUBISM_CORE_URL = '/live2d/live2dcubismcore.min.js';
 
+/** Distance threshold (px) from container edge before the mascot fades in */
+const PROXIMITY = 200;
+
+/** Fade-out delay after mouse leaves proximity zone (ms) */
+const HIDE_DELAY = 400;
+
+/**
+ * Interactive Live2D mascot (看板娘).
+ *
+ * Features:
+ * - Proximity-based visibility (fades in when mouse is near)
+ * - Real-time eye / head tracking following the cursor
+ * - Model switching via top‑center buttons
+ * - Draggable repositioning
+ * - Click → Tap motion
+ * - Responsive breakpoints (desktop / tablet / phone)
+ *
+ * Uses pixi-live2d-display (Cubism 4) with a shared PIXI Application reused
+ * across model switches. Cubism Core is loaded via next/script in layout.tsx.
+ */
 export default function Live2DMiku() {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -49,12 +72,15 @@ export default function Live2DMiku() {
   const [currentModelId, setCurrentModelId] = useState<string>('miku');
   const [loading, setLoading] = useState(true);
   const [visible, setVisible] = useState(false);
+  const visibleRef = useRef(false); // mirrors setVisible for use in RAF / closures
 
   const dragging = useRef(false);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout>>();
-  const PROXIMITY = 200;
   const dragOffset = useRef({ x: 0, y: 0 });
 
+  // ---------------------------------------------------------------------------
+  // Initialization & model loading
+  // ---------------------------------------------------------------------------
   useEffect(() => {
     const container = containerRef.current;
     const canvas = canvasRef.current;
@@ -64,7 +90,8 @@ export default function Live2DMiku() {
     let cancelled = false;
 
     async function start() {
-      // Step 1: Ensure Cubism Core is available
+      // Ensure Cubism Core is loaded (next/script should handle this, but
+      // defensive fallback in case the module was imported before the script)
       if (!(window as any).Live2DCubismCore) {
         await new Promise<void>((resolve, reject) => {
           const script = document.createElement('script');
@@ -74,15 +101,13 @@ export default function Live2DMiku() {
           document.head.appendChild(script);
         });
       }
-
       if (cancelled) return;
 
-      // Step 2: Init PIXI app once, reuse for model switches
+      // One-time PIXI Application setup (shared across model switches)
       if (!appRef.current) {
         const PIXIModule = await import('pixi.js');
         const PIXI = PIXIModule.default || PIXIModule;
         (window as any).PIXI = PIXI;
-
         if (cancelled) return;
 
         const app = new PIXI.Application({
@@ -95,14 +120,11 @@ export default function Live2DMiku() {
         });
         appRef.current = app;
       }
-
       if (cancelled) return;
 
-      // Step 3: Import Live2D module (Cubism Core is guaranteed available now)
       const { Live2DModel } = await import('pixi-live2d-display/cubism4');
       if (cancelled) return;
 
-      // Step 4: Load model
       const config = MODELS.find((m) => m.id === currentModelId)!;
       currentModelRef.current = config;
 
@@ -162,12 +184,39 @@ export default function Live2DMiku() {
     };
   }, []);
 
-  // Eye tracking
+  // ---------------------------------------------------------------------------
+  // Mouse tracking — one shared mousemove listener for both proximity detection
+  // and eye-tracking position, plus a RAF loop that skips when hidden.
+  // ---------------------------------------------------------------------------
   useEffect(() => {
     const onMouseMove = (e: MouseEvent) => {
       mousePosRef.current = { x: e.clientX, y: e.clientY };
+
+      // Proximity check
+      const el = containerRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const cx = r.left + r.width / 2;
+      const cy = r.top + r.height / 2;
+      const dx = Math.max(0, Math.abs(e.clientX - cx) - r.width / 2);
+      const dy = Math.max(0, Math.abs(e.clientY - cy) - r.height / 2);
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < PROXIMITY) {
+        clearTimeout(hideTimerRef.current);
+        if (!visibleRef.current) {
+          visibleRef.current = true;
+          setVisible(true);
+        }
+      } else if (visibleRef.current) {
+        clearTimeout(hideTimerRef.current);
+        hideTimerRef.current = setTimeout(() => {
+          visibleRef.current = false;
+          setVisible(false);
+        }, HIDE_DELAY);
+      }
     };
-    window.addEventListener('mousemove', onMouseMove);
+
+    window.addEventListener('mousemove', onMouseMove, { passive: true });
 
     const updateLoop = () => {
       const model = modelRef.current;
@@ -202,36 +251,11 @@ export default function Live2DMiku() {
     };
   }, []);
 
-  // Proximity: show on mouse approach, hide after delay
-  useEffect(() => {
-    const onMouseMove = (e: MouseEvent) => {
-      const el = containerRef.current;
-      if (!el) return;
-      const r = el.getBoundingClientRect();
-      const cx = r.left + r.width / 2;
-      const cy = r.top + r.height / 2;
-      const dx = Math.max(0, Math.abs(e.clientX - cx) - r.width / 2);
-      const dy = Math.max(0, Math.abs(e.clientY - cy) - r.height / 2);
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist < PROXIMITY) {
-        clearTimeout(hideTimerRef.current);
-        if (!visible) setVisible(true);
-      } else if (visible) {
-        clearTimeout(hideTimerRef.current);
-        hideTimerRef.current = setTimeout(() => setVisible(false), 400);
-      }
-    };
-    window.addEventListener('mousemove', onMouseMove, { passive: true });
-    return () => {
-      window.removeEventListener('mousemove', onMouseMove);
-      clearTimeout(hideTimerRef.current);
-    };
-  }, [visible]);
-
-  // Drag
+  // ---------------------------------------------------------------------------
+  // Drag handlers
+  // ---------------------------------------------------------------------------
   const onPointerDown = (e: React.PointerEvent) => {
-    const target = e.target as HTMLElement;
-    if (target.closest('.live2d-model-switcher')) return;
+    if ((e.target as HTMLElement).closest('.live2d-model-switcher')) return;
     dragging.current = true;
     const rect = containerRef.current!.getBoundingClientRect();
     dragOffset.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
@@ -247,15 +271,16 @@ export default function Live2DMiku() {
     el.style.bottom = 'auto';
   };
 
-  const onPointerUp = () => {
-    dragging.current = false;
-  };
+  const onPointerUp = () => { dragging.current = false; };
 
   const switchModel = (id: string) => {
     if (id === currentModelId) return;
     setCurrentModelId(id);
   };
 
+  // ---------------------------------------------------------------------------
+  // Render
+  // ---------------------------------------------------------------------------
   return (
     <div
       ref={containerRef}
@@ -265,25 +290,29 @@ export default function Live2DMiku() {
       onPointerCancel={onPointerUp}
       className={`live2d-miku${visible ? ' visible' : ''}`}
     >
-      <div className="live2d-model-switcher">
-        {MODELS.map((m) => (
-          <button
-            key={m.id}
-            className={`live2d-switch-btn${m.id === currentModelId ? ' active' : ''}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              switchModel(m.id);
-            }}
-          >
-            {m.name}
-          </button>
-        ))}
-      </div>
+      {visible && (
+        <div className="live2d-model-switcher">
+          {MODELS.map((m) => (
+            <button
+              key={m.id}
+              className={`live2d-switch-btn${m.id === currentModelId ? ' active' : ''}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                switchModel(m.id);
+              }}
+            >
+              {m.name}
+            </button>
+          ))}
+        </div>
+      )}
       <canvas ref={canvasRef} className="live2d-miku-canvas" />
       {loading && <div className="live2d-loading" />}
-      <div className="live2d-status">
-        {loading ? '加载中...' : currentModelId === 'miku' ? '初音ミク' : 'ひより'}
-      </div>
+      {visible && (
+        <div className="live2d-status">
+          {loading ? '加载中...' : currentModelId === 'miku' ? '初音ミク' : 'ひより'}
+        </div>
+      )}
     </div>
   );
 }
