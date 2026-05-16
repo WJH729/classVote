@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Roboto } from 'next/font/google';
 import './globals.css';
+import Script from 'next/script';
 import { Providers } from './providers';
 
 const roboto = Roboto({
@@ -26,6 +27,7 @@ export default function RootLayout({
         <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+        <Script src="/live2d/live2dcubismcore.min.js" strategy="beforeInteractive" />
       </head>
       <body suppressHydrationWarning>
         <Providers>

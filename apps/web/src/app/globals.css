@@ -80,7 +80,136 @@ a {
   touch-action: manipulation;
 }
 
-/* 全局入场动画 */
+/* Live2D Miku 看板娘 */
+.live2d-miku {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 380px;
+  height: 500px;
+  z-index: 9999;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s ease;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.live2d-miku.visible {
+  opacity: 1;
+  pointer-events: auto;
+  cursor: grab;
+}
+
+.live2d-miku.visible:active {
+  cursor: grabbing;
+}
+
+.live2d-miku-canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+  pointer-events: none;
+}
+
+@media (max-width: 600px) {
+  .live2d-miku {
+    width: 180px;
+    height: 240px;
+    bottom: 12px;
+    right: 12px;
+  }
+}
+
+@media (max-width: 400px) {
+  .live2d-miku {
+    width: 140px;
+    height: 187px;
+    bottom: 8px;
+    right: 8px;
+  }
+}
+/* Live2D 模型切换按钮 */
+.live2d-model-switcher {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 4px;
+  padding: 4px 6px;
+  background: rgba(0, 0, 0, 0.55);
+  border-radius: 0 0 8px 8px;
+  z-index: 10;
+  pointer-events: auto;
+}
+
+.live2d-switch-btn {
+  padding: 3px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+  touch-action: manipulation;
+}
+
+.live2d-switch-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
+.live2d-switch-btn.active {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.6);
+}
+
+/* Live2D 状态指示标签 */
+.live2d-status {
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 2px 8px;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 10px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* Live2D 加载指示器 */
+.live2d-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 8px;
+}
+
+.live2d-loading::after {
+  content: '';
+  width: 24px;
+  height: 24px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: live2d-spin 0.6s linear infinite;
+}
+
+@keyframes live2d-spin {
+  to { transform: rotate(360deg); }
+}
+
 @keyframes fadeInUp {
   from {
     opacity: 0;
