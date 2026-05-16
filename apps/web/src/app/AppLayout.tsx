@@ -1,6 +1,7 @@
 'use client';
 
 import { WallpaperBackground } from '../components/WallpaperBackground';
+import Live2DMiku from '../components/Live2DMiku';
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -31,6 +32,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           work by:HEERO
         </footer>
       </main>
+      <Live2DMiku />
     </>
   );
 }
